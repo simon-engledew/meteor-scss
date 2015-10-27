@@ -4,6 +4,41 @@ const sass = Npm.require('node-sass');
 const Future = Npm.require('fibers/future');
 const files = Plugin.files;
 
+const hash = Npm.require('hash-sum');
+const syntax = Npm.require('postcss-scss');
+const postcss = Npm.require('postcss')
+
+var postprocessAtComponent = function(root) {
+  root.each(function (rule) {
+    if (rule.type == 'atrule') {
+      if (rule.name == 'component') {
+        let scope = '.component-' + hash(rule.params) + ' >';
+
+        rule.walkRules(function(child) {
+          if (!child.selectors){
+            return child;
+          }
+
+          child.selectors = child.selectors.map(function(selector) {
+            if (selector.indexOf(scope) === 0) {
+              return selector;
+            }
+
+            return scope + ' ' + selector;
+          });
+        });
+
+        rule.each(function(child) {
+          root.insertBefore(rule, child);
+        });
+
+        rule.remove();
+      }
+    }
+
+    return rule;
+  });
+};
 
 Plugin.registerCompiler({
   extensions: ['scss', 'sass'],
@@ -185,7 +220,7 @@ class SassCompiler extends MultiFileCachingCompiler {
     }
 
     //Start compile sass (async)
-    const f = new Future;
+    const scssFuture = new Future;
 
     const options = {
       sourceMap:         true,
@@ -215,8 +250,8 @@ class SassCompiler extends MultiFileCachingCompiler {
 
     let output;
     try {
-      sass.render(options,f.resolver());
-      output = f.wait();
+      sass.render(options, scssFuture.resolver());
+      output = scssFuture.wait();
     } catch (e) {
       inputFile.error({
         message: `Scss compiler error: ${e.message}\n`,
@@ -225,6 +260,27 @@ class SassCompiler extends MultiFileCachingCompiler {
       return null;
     }
     //End compile sass
+
+    const postcssFuture = new Future();
+
+    postcss()
+      .use(postprocessAtComponent)
+      .process(output.css, {
+        from: options.file,
+        to: options.outFile,
+        map: {
+          inline: false,
+          prev: output.map.toString('utf-8')
+        },
+      }).
+      // passing the function references in hangs
+      then(function(success) {
+        postcssFuture.return(success);
+      }, function(failure) {
+        postcssFuture.throw(failure);
+      });
+
+    output = postcssFuture.wait();
 
     //Start fix sourcemap references
     if (output.map) {
@@ -238,7 +294,7 @@ class SassCompiler extends MultiFileCachingCompiler {
     return {compileResult,referencedImportPaths};
   }
 
-  addCompileResult(inputFile,  compileResult) {
+  addCompileResult(inputFile, compileResult) {
     inputFile.addStylesheet({
       data:  compileResult.css,
       path: inputFile.getPathInPackage() + '.css',

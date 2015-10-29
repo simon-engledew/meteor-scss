@@ -9,11 +9,12 @@ Package.registerBuildPlugin({
   name: "compileScssBatch",
   use: ['caching-compiler@1.0.0', 'ecmascript@0.1.5', 'underscore@1.0.4'],
   sources: [
+    'shared/sum.js',
+    'shared/scope.js',
     'plugin/compile-scss.js'
   ],
   npmDependencies: {
     'node-sass': '3.4.1',
-    "hash-sum": "1.0.2",
     "postcss": "5.0.10",
     "postcss-scss": "0.1.3"
   }
@@ -22,6 +23,9 @@ Package.registerBuildPlugin({
 Package.onUse(function (api) {
   api.versionsFrom("1.2.0.2");
   api.use('isobuild:compiler-plugin@1.0.0');
+  api.addFiles(['shared/sum.js', 'shared/scope.js', 'shared/scoped.js']);
+  api.export('Scope');
+  api.export('Scoped');
 });
 
 Package.on_test(function (api) {

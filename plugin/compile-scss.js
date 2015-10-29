@@ -4,15 +4,14 @@ const sass = Npm.require('node-sass');
 const Future = Npm.require('fibers/future');
 const files = Plugin.files;
 
-const hash = Npm.require('hash-sum');
 const syntax = Npm.require('postcss-scss');
 const postcss = Npm.require('postcss')
 
 var postprocessAtComponent = function(root) {
   root.each(function (rule) {
     if (rule.type == 'atrule') {
-      if (rule.name == 'component') {
-        let scope = '.component-' + hash(rule.params) + ' >';
+      if (rule.name == 'scope') {
+        let scope = '.' + Scope(rule.params);
 
         rule.walkRules(function(child) {
           if (!child.selectors){
